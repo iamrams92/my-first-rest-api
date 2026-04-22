@@ -1,0 +1,10 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fundamental-app
+    ports:
+      - "4040:4040"
+    environment:
+      PORT: 4040
