@@ -4,11 +4,13 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
+  ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
+import { FindProductsQueryDto } from './dto/find-products-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
 
@@ -17,13 +19,13 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Get()
-  findAll() {
-    return this.productsService.findAll();
+  findAll(@Query() query: FindProductsQueryDto) {
+    return this.productsService.findAll(query);
   }
 
   @Get(':runningNumber')
-  findOne(@Param('runningNumber', ParseIntPipe) runningNumber: number) {
-    return this.productsService.findOne(runningNumber);
+  findOne(@Param('runningNumber', ParseUUIDPipe) runningNumber: string) {
+    return this.productsService.findOneWithQuantity(runningNumber);
   }
 
   @Post()
@@ -33,14 +35,14 @@ export class ProductsController {
 
   @Patch(':runningNumber')
   update(
-    @Param('runningNumber', ParseIntPipe) runningNumber: number,
+    @Param('runningNumber', ParseUUIDPipe) runningNumber: string,
     @Body() updateProductDto: UpdateProductDto,
   ) {
     return this.productsService.update(runningNumber, updateProductDto);
   }
 
   @Delete(':runningNumber')
-  remove(@Param('runningNumber', ParseIntPipe) runningNumber: number) {
+  remove(@Param('runningNumber', ParseUUIDPipe) runningNumber: string) {
     return this.productsService.remove(runningNumber);
   }
 }

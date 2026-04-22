@@ -1,14 +1,14 @@
 import {
-  BadRequestException,
+  Body,
   Controller,
   Get,
   Param,
-  ParseIntPipe,
+  ParseUUIDPipe,
   Post,
   Query,
-  Body,
 } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { FindOrdersQueryDto } from './dto/find-orders-query.dto';
 import { OrdersService } from './orders.service';
 
 @Controller('orders')
@@ -16,28 +16,18 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Get()
-  findAll(@Query('productId') productId?: string) {
-    let parsedProductId: number | undefined;
-
-    if (productId !== undefined) {
-      parsedProductId = Number(productId);
-
-      if (!Number.isInteger(parsedProductId) || parsedProductId < 1) {
-        throw new BadRequestException('productId must be a positive integer');
-      }
-    }
-
-    return this.ordersService.findAll(parsedProductId);
-  }
-
-  @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.ordersService.findOne(id);
+  findAll(@Query() query: FindOrdersQueryDto) {
+    return this.ordersService.findAll(query);
   }
 
   @Get('product/:productId/transactions')
-  getProductTransactions(@Param('productId', ParseIntPipe) productId: number) {
+  getProductTransactions(@Param('productId', ParseUUIDPipe) productId: string) {
     return this.ordersService.getProductTransactions(productId);
+  }
+
+  @Get(':id')
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
+    return this.ordersService.findOne(id);
   }
 
   @Post()

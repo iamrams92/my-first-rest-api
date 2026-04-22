@@ -1,22 +1,25 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
+import { FindProductsQueryDto } from './dto/find-products-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import {
   Product,
-  productRunningNumber,
+  productCodeRunningNumber,
   productsDatabase,
 } from './database/database';
+import { ordersDatabase } from '../orders/database/database';
+import { generateUuid } from '../utils/uuid.util';
 
 @Injectable()
 export class ProductsService {
-  private runningNumber = productRunningNumber;
+  private codeRunningNumber = productCodeRunningNumber;
 
   create(createProductDto: CreateProductDto): Product {
-    const runningNumber = this.runningNumber++;
-    const code = `PRD-${runningNumber.toString().padStart(4, '0')}`;
+    const codeSequence = this.codeRunningNumber++;
+    const code = `PRD-${codeSequence.toString().padStart(4, '0')}`;
 
     const product: Product = {
-      runningNumber,
+      id: generateUuid(),
       code,
       name: createProductDto.name,
       category: createProductDto.category,
@@ -28,26 +31,52 @@ export class ProductsService {
     return product;
   }
 
-  findAll(): Product[] {
-    return productsDatabase;
+  findAll(query: FindProductsQueryDto) {
+    const { page, size } = query;
+    const totalItems = productsDatabase.length;
+    const totalPage = totalItems === 0 ? 0 : Math.ceil(totalItems / size);
+    const startIndex = (page - 1) * size;
+    const items = productsDatabase
+      .slice(startIndex, startIndex + size)
+      .map((product) => ({
+        ...product,
+        quantity: this.calculateProductQuantity(product.id),
+      }));
+
+    return {
+      page,
+      size,
+      totalItems,
+      totalPage,
+      items,
+    };
   }
 
-  findOne(runningNumber: number): Product {
+  findOne(id: string): Product {
     const product = productsDatabase.find(
-      (item) => item.runningNumber === runningNumber,
+      (item) => item.id === id,
     );
 
     if (!product) {
       throw new NotFoundException(
-        `Product with running number ${runningNumber} not found`,
+        `Product with running number ${id} not found`,
       );
     }
 
     return product;
   }
 
-  update(runningNumber: number, updateProductDto: UpdateProductDto): Product {
-    const product = this.findOne(runningNumber);
+  findOneWithQuantity(id: string) {
+    const product = this.findOne(id);
+
+    return {
+      ...product,
+      quantity: this.calculateProductQuantity(id),
+    };
+  }
+
+  update(id: string, updateProductDto: UpdateProductDto): Product {
+    const product = this.findOne(id);
 
     if (updateProductDto.name !== undefined) {
       product.name = updateProductDto.name;
@@ -65,18 +94,29 @@ export class ProductsService {
     return product;
   }
 
-  remove(runningNumber: number): Product {
+  remove(id: string): Product {
     const index = productsDatabase.findIndex(
-      (item) => item.runningNumber === runningNumber,
+      (item) => item.id === id,
     );
 
     if (index === -1) {
       throw new NotFoundException(
-        `Product with running number ${runningNumber} not found`,
+        `Product with running number ${id} not found`,
       );
     }
 
     const [deletedProduct] = productsDatabase.splice(index, 1);
     return deletedProduct;
+  }
+
+  private calculateProductQuantity(productId: string): number {
+    return ordersDatabase
+      .filter((order) => order.productId === productId)
+      .reduce((balance, order) => {
+        if (order.transactionType === 'BUY') {
+          return balance + order.quantity;
+        }
+        return balance - order.quantity;
+      }, 0);
   }
 }

@@ -1,5 +1,7 @@
+import { generateUuid } from '../../utils/uuid.util';
+
 export interface Product {
-  runningNumber: number;
+  id: string;
   code: string;
   name: string;
   category: string;
@@ -7,9 +9,14 @@ export interface Product {
   isActive: boolean;
 }
 
+export const seededProductIds = {
+  first: generateUuid(),
+  second: generateUuid(),
+};
+
 export const productsDatabase: Product[] = [
   {
-    runningNumber: 1,
+    id: seededProductIds.first,
     code: 'PRD-0001',
     name: 'Product 1',
     category: 'Category 1',
@@ -17,7 +24,7 @@ export const productsDatabase: Product[] = [
     isActive: true,
   },
   {
-    runningNumber: 2,
+    id: seededProductIds.second,
     code: 'PRD-0002',
     name: 'Product 2',
     category: 'Category 2',
@@ -26,4 +33,4 @@ export const productsDatabase: Product[] = [
   },
 ];
 
-export let productRunningNumber = productsDatabase.length + 1;
+export let productCodeRunningNumber = productsDatabase.length + 1;
