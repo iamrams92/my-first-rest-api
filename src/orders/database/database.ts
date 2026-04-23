@@ -7,6 +7,7 @@ export interface Order {
   id: string;
   code: string;
   productId: string;
+  customerId?: string;
   transactionType: TransactionType;
   quantity: number;
   unitPrice: number;

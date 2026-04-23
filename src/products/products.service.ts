@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { FindProductsQueryDto } from './dto/find-products-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -73,6 +77,25 @@ export class ProductsService {
       ...product,
       quantity: this.calculateProductQuantity(id),
     };
+  }
+
+  getAvailableQuantity(productId: string): number {
+    this.findOne(productId);
+    return this.calculateProductQuantity(productId);
+  }
+
+  validateProductForSale(productId: string, quantity: number) {
+    const product = this.findOne(productId);
+    if (!product.isActive) {
+      throw new BadRequestException(`Product ${productId} is inactive`);
+    }
+
+    const availableQuantity = this.calculateProductQuantity(productId);
+    if (quantity > availableQuantity) {
+      throw new BadRequestException(
+        `Insufficient stock for product ${productId}. Available: ${availableQuantity}, requested: ${quantity}`,
+      );
+    }
   }
 
   update(id: string, updateProductDto: UpdateProductDto): Product {

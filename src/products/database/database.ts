@@ -16,7 +16,7 @@ export const seededProductIds = {
 
 export const productsDatabase: Product[] = [
   {
-    id: seededProductIds.first,
+    id: generateUuid(),
     code: 'PRD-0001',
     name: 'Product 1',
     category: 'Category 1',
@@ -24,7 +24,7 @@ export const productsDatabase: Product[] = [
     isActive: true,
   },
   {
-    id: seededProductIds.second,
+    id: generateUuid(),
     code: 'PRD-0002',
     name: 'Product 2',
     category: 'Category 2',

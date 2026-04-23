@@ -25,6 +25,34 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## Simple E-commerce Flow
+
+This project now supports a simple e-commerce workflow built on top of existing `products` and `orders` features.
+
+### Main domain APIs
+
+- `GET /customers` list customers
+- `POST /customers` create customer
+- `GET /products` list products with current stock quantity
+- `POST /orders` create stock movement (`BUY` for restock, `SELL` for sale, require `customerId`)
+- `POST /carts` create customer cart (require `customerId`)
+- `POST /carts/:cartId/items` add product to cart
+- `PATCH /carts/:cartId/items/:productId` update quantity in cart
+- `DELETE /carts/:cartId/items/:productId` remove product from cart
+- `POST /carts/:cartId/checkout` checkout cart and create `SELL` orders automatically
+
+### Example end-to-end flow
+
+1. Create or check existing products (`/products`)
+2. Create or check customer (`/customers`)
+3. Restock inventory using `POST /orders` with `transactionType: "BUY"`
+4. Create cart (`POST /carts`) with `customerId`
+5. Add items to cart (`POST /carts/:cartId/items`)
+6. Review cart (`GET /carts/:cartId`)
+7. Checkout (`POST /carts/:cartId/checkout`)
+
+During checkout, the system validates stock, product active status, and customer active status before creating sale orders.
+
 ## Project setup
 
 ```bash

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsUUID, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsUUID, Min } from 'class-validator';
 
 export class CreateOrderDto {
   @IsUUID()
@@ -12,4 +12,8 @@ export class CreateOrderDto {
   @IsInt()
   @Min(1)
   quantity: number;
+
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
 }
