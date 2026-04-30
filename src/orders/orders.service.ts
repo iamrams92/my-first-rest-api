@@ -1,76 +1,63 @@
 import {
-  BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CustomersService } from '../customers/customers.service';
 import { ProductsService } from '../products/products.service';
+import { UsersService } from '../users/users.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import {
-  orderCodeRunningNumber,
   Order,
+  makeOrder,
   ordersDatabase,
 } from './database/database';
 import { FindOrdersQueryDto } from './dto/find-orders-query.dto';
-import { generateUuid } from '../utils/uuid.util';
+import { createOrderItem, orderItemsDatabase } from '../order-items/database';
 
 @Injectable()
 export class OrdersService {
-  private codeRunningNumber = orderCodeRunningNumber;
-
   constructor(
     private readonly productsService: ProductsService,
-    private readonly customersService: CustomersService,
+    private readonly usersService: UsersService,
   ) {}
 
-  create(createOrderDto: CreateOrderDto): Order {
-    const product = this.productsService.findOne(createOrderDto.productId);
-    let customerId: string | undefined;
+  create(createOrderDto: CreateOrderDto) {
+    const user = this.usersService.findActiveOne(createOrderDto.userId);
 
-    if (createOrderDto.transactionType === 'SELL') {
-      if (!createOrderDto.customerId) {
-        throw new BadRequestException(
-          'customerId is required for SELL transactions',
-        );
-      }
-
-      const customer = this.customersService.findActiveOne(
-        createOrderDto.customerId,
-      );
-      customerId = customer.id;
-      this.productsService.validateProductForSale(
-        createOrderDto.productId,
-        createOrderDto.quantity,
-      );
+    let totalAmount = 0;
+    for (const item of createOrderDto.items) {
+      const product = this.productsService.findOne(item.productId);
+      this.productsService.validateProductForSale(product.id, item.quantity);
+      totalAmount += product.price * item.quantity;
     }
 
-    const codeSequence = this.codeRunningNumber++;
+    const order = makeOrder({
+      userId: user.id,
+      totalAmount,
+      status: 'PENDING',
+      paymentStatus: 'PENDING',
+    });
 
-    const order: Order = {
-      id: generateUuid(),
-      code: `ORD-${codeSequence.toString().padStart(4, '0')}`,
-      productId: product.id,
-      customerId,
-      transactionType: createOrderDto.transactionType,
-      quantity: createOrderDto.quantity,
-      unitPrice: product.price,
-      totalPrice: product.price * createOrderDto.quantity,
-      createdAt: new Date().toISOString(),
-    };
+    for (const item of createOrderDto.items) {
+      const product = this.productsService.findOne(item.productId);
+      this.productsService.decreaseStock(product.id, item.quantity);
+      createOrderItem({
+        orderId: order.id,
+        productId: product.id,
+        quantity: item.quantity,
+        unitPrice: product.price,
+      });
+    }
 
-    ordersDatabase.push(order);
-    return order;
+    return this.buildOrderView(order);
   }
 
   findAll(query: FindOrdersQueryDto) {
-    const { productId, page, size } = query;
+    const { userId, page, size } = query;
 
     let filteredOrders = ordersDatabase;
-    if (productId !== undefined) {
-      this.productsService.findOne(productId);
-      filteredOrders = ordersDatabase.filter(
-        (order) => order.productId === productId,
-      );
+    if (userId !== undefined) {
+      this.usersService.findOne(userId);
+      filteredOrders = ordersDatabase.filter((order) => order.userId === userId);
     }
 
     const totalItems = filteredOrders.length;
@@ -99,37 +86,33 @@ export class OrdersService {
     return this.buildOrderView(order);
   }
 
-  getProductTransactions(productId: string) {
-    this.productsService.findOne(productId);
+  findOneRaw(id: string): Order {
+    const order = ordersDatabase.find((item) => item.id === id);
+    if (!order) {
+      throw new NotFoundException(`Order with id ${id} not found`);
+    }
+    return order;
+  }
 
-    const orders = ordersDatabase.filter(
-      (order) => order.productId === productId,
-    );
-
-    return {
-      productId,
-      totalTransactions: orders.length,
-      orders: orders.map((order) => this.buildOrderView(order)),
-    };
+  markAsPaid(orderId: string) {
+    const order = this.findOneRaw(orderId);
+    order.paymentStatus = 'PAID';
+    order.status = 'PAID';
+    return order;
   }
 
   private buildOrderView(order: Order) {
-    if (!order.customerId) {
-      return {
-        ...order,
-        customer: null,
-      };
-    }
-
-    const customer = this.customersService.findOne(order.customerId);
+    const user = this.usersService.findOne(order.userId);
+    const items = orderItemsDatabase.filter((item) => item.orderId === order.id);
     return {
       ...order,
-      customer: {
-        id: customer.id,
-        code: customer.code,
-        fullName: customer.fullName,
-        email: customer.email,
+      user: {
+        id: user.id,
+        code: user.code,
+        fullName: user.fullName,
+        email: user.email,
       },
+      items,
     };
   }
 }

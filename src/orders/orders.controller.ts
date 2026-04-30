@@ -20,11 +20,6 @@ export class OrdersController {
     return this.ordersService.findAll(query);
   }
 
-  @Get('product/:productId/transactions')
-  getProductTransactions(@Param('productId', ParseUUIDPipe) productId: string) {
-    return this.ordersService.getProductTransactions(productId);
-  }
-
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.ordersService.findOne(id);

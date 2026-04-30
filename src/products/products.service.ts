@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { CategoriesService } from '../categories/categories.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { FindProductsQueryDto } from './dto/find-products-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -11,14 +12,15 @@ import {
   productCodeRunningNumber,
   productsDatabase,
 } from './database/database';
-import { ordersDatabase } from '../orders/database/database';
 import { generateUuid } from '../utils/uuid.util';
 
 @Injectable()
 export class ProductsService {
   private codeRunningNumber = productCodeRunningNumber;
+  constructor(private readonly categoriesService: CategoriesService) {}
 
   create(createProductDto: CreateProductDto): Product {
+    this.categoriesService.findOne(createProductDto.categoryId);
     const codeSequence = this.codeRunningNumber++;
     const code = `PRD-${codeSequence.toString().padStart(4, '0')}`;
 
@@ -26,8 +28,9 @@ export class ProductsService {
       id: generateUuid(),
       code,
       name: createProductDto.name,
-      category: createProductDto.category,
+      categoryId: createProductDto.categoryId,
       price: createProductDto.price,
+      stock: createProductDto.stock,
       isActive: createProductDto.isActive ?? true,
     };
 
@@ -44,7 +47,7 @@ export class ProductsService {
       .slice(startIndex, startIndex + size)
       .map((product) => ({
         ...product,
-        quantity: this.calculateProductQuantity(product.id),
+        category: this.categoriesService.findOne(product.categoryId),
       }));
 
     return {
@@ -75,13 +78,13 @@ export class ProductsService {
 
     return {
       ...product,
-      quantity: this.calculateProductQuantity(id),
+      quantity: product.stock,
+      category: this.categoriesService.findOne(product.categoryId),
     };
   }
 
   getAvailableQuantity(productId: string): number {
-    this.findOne(productId);
-    return this.calculateProductQuantity(productId);
+    return this.findOne(productId).stock;
   }
 
   validateProductForSale(productId: string, quantity: number) {
@@ -90,7 +93,7 @@ export class ProductsService {
       throw new BadRequestException(`Product ${productId} is inactive`);
     }
 
-    const availableQuantity = this.calculateProductQuantity(productId);
+    const availableQuantity = product.stock;
     if (quantity > availableQuantity) {
       throw new BadRequestException(
         `Insufficient stock for product ${productId}. Available: ${availableQuantity}, requested: ${quantity}`,
@@ -104,14 +107,18 @@ export class ProductsService {
     if (updateProductDto.name !== undefined) {
       product.name = updateProductDto.name;
     }
-    if (updateProductDto.category !== undefined) {
-      product.category = updateProductDto.category;
+    if (updateProductDto.categoryId !== undefined) {
+      this.categoriesService.findOne(updateProductDto.categoryId);
+      product.categoryId = updateProductDto.categoryId;
     }
     if (updateProductDto.price !== undefined) {
       product.price = updateProductDto.price;
     }
     if (updateProductDto.isActive !== undefined) {
       product.isActive = updateProductDto.isActive;
+    }
+    if (updateProductDto.stock !== undefined) {
+      product.stock = updateProductDto.stock;
     }
 
     return product;
@@ -132,14 +139,18 @@ export class ProductsService {
     return deletedProduct;
   }
 
-  private calculateProductQuantity(productId: string): number {
-    return ordersDatabase
-      .filter((order) => order.productId === productId)
-      .reduce((balance, order) => {
-        if (order.transactionType === 'BUY') {
-          return balance + order.quantity;
-        }
-        return balance - order.quantity;
-      }, 0);
+  decreaseStock(productId: string, quantity: number) {
+    const product = this.findOne(productId);
+    if (quantity > product.stock) {
+      throw new BadRequestException(
+        `Insufficient stock for product ${productId}. Available: ${product.stock}, requested: ${quantity}`,
+      );
+    }
+    product.stock -= quantity;
+  }
+
+  increaseStock(productId: string, quantity: number) {
+    const product = this.findOne(productId);
+    product.stock += quantity;
   }
 }

@@ -3,9 +3,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CustomersService } from '../customers/customers.service';
 import { ProductsService } from '../products/products.service';
 import { OrdersService } from '../orders/orders.service';
+import { UsersService } from '../users/users.service';
 import { generateUuid } from '../utils/uuid.util';
 import { Cart, CartItem, cartsDatabase } from './database/database';
 import { CheckoutCartDto } from './dto/checkout-cart.dto';
@@ -14,16 +14,16 @@ import { CreateCartDto } from './dto/create-cart.dto';
 @Injectable()
 export class CartsService {
   constructor(
-    private readonly customersService: CustomersService,
+    private readonly usersService: UsersService,
     private readonly productsService: ProductsService,
     private readonly ordersService: OrdersService,
   ) {}
 
   create(createCartDto: CreateCartDto) {
-    const customer = this.customersService.findActiveOne(createCartDto.customerId);
+    const user = this.usersService.findActiveOne(createCartDto.userId);
     const cart: Cart = {
       id: generateUuid(),
-      customerId: customer.id,
+      userId: user.id,
       status: 'ACTIVE',
       items: [],
       createdAt: new Date().toISOString(),
@@ -101,14 +101,13 @@ export class CartsService {
       this.assertSufficientStock(item.productId, item.quantity);
     }
 
-    const orders = cart.items.map((item) =>
-      this.ordersService.create({
+    const order = this.ordersService.create({
+      userId: cart.userId,
+      items: cart.items.map((item) => ({
         productId: item.productId,
-        transactionType: 'SELL',
         quantity: item.quantity,
-        customerId: cart.customerId,
-      }),
-    );
+      })),
+    });
 
     cart.status = 'CHECKED_OUT';
     cart.checkedOutAt = new Date().toISOString();
@@ -126,9 +125,9 @@ export class CartsService {
       checkout: {
         totalItems,
         grandTotal,
-        orderCount: orders.length,
+        orderCount: 1,
       },
-      orders,
+      order,
     };
   }
 
@@ -158,7 +157,7 @@ export class CartsService {
   }
 
   private buildCartSummary(cart: Cart) {
-    const customer = this.customersService.findOne(cart.customerId);
+    const user = this.usersService.findOne(cart.userId);
     const items = cart.items.map((item: CartItem) => {
       const product = this.productsService.findOne(item.productId);
       return {
@@ -176,11 +175,11 @@ export class CartsService {
 
     return {
       ...cart,
-      customer: {
-        id: customer.id,
-        code: customer.code,
-        fullName: customer.fullName,
-        email: customer.email,
+      user: {
+        id: user.id,
+        code: user.code,
+        fullName: user.fullName,
+        email: user.email,
       },
       items,
       summary: {

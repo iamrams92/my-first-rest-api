@@ -1,51 +1,43 @@
-import { seededProductIds } from '../../products/database/database';
 import { generateUuid } from '../../utils/uuid.util';
 
-export type TransactionType = 'BUY' | 'SELL';
+export type OrderStatus = 'PENDING' | 'PAID' | 'CANCELLED';
+export type OrderPaymentStatus = 'PENDING' | 'PAID';
 
 export interface Order {
   id: string;
   code: string;
-  productId: string;
-  customerId?: string;
-  transactionType: TransactionType;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
+  userId: string;
+  status: OrderStatus;
+  paymentStatus: OrderPaymentStatus;
+  totalAmount: number;
   createdAt: string;
 }
 
-export const ordersDatabase: Order[] = [
-  {
-    id: generateUuid(),
-    code: 'ORD-0001',
-    productId: seededProductIds.first,
-    transactionType: 'BUY',
-    quantity: 10,
-    unitPrice: 100,
-    totalPrice: 1000,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: generateUuid(),
-    code: 'ORD-0002',
-    productId: seededProductIds.second,
-    transactionType: 'BUY',
-    quantity: 20,
-    unitPrice: 200,
-    totalPrice: 4000,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: generateUuid(),
-    code: 'ORD-0003',
-    productId: seededProductIds.second,
-    transactionType: 'SELL',
-    quantity: 2,
-    unitPrice: 200,
-    totalPrice: 4000,
-    createdAt: new Date().toISOString(),
-  },
-];
+export const ordersDatabase: Order[] = [];
 
-export let orderCodeRunningNumber = ordersDatabase.length + 1;
+export let orderCodeRunningNumber = 1;
+
+export function createOrderCode() {
+  const code = `ORD-${orderCodeRunningNumber.toString().padStart(4, '0')}`;
+  orderCodeRunningNumber += 1;
+  return code;
+}
+
+export function makeOrder(params: {
+  userId: string;
+  totalAmount: number;
+  status?: OrderStatus;
+  paymentStatus?: OrderPaymentStatus;
+}) {
+  const order: Order = {
+    id: generateUuid(),
+    code: createOrderCode(),
+    userId: params.userId,
+    status: params.status ?? 'PENDING',
+    paymentStatus: params.paymentStatus ?? 'PENDING',
+    totalAmount: params.totalAmount,
+    createdAt: new Date().toISOString(),
+  };
+  ordersDatabase.push(order);
+  return order;
+}

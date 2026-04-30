@@ -1,19 +1,30 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsUUID, Min } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsInt,
+  IsUUID,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 
-export class CreateOrderDto {
+class CreateOrderItemInputDto {
   @IsUUID()
   productId: string;
-
-  @IsIn(['BUY', 'SELL'])
-  transactionType: 'BUY' | 'SELL';
 
   @Type(() => Number)
   @IsInt()
   @Min(1)
   quantity: number;
+}
 
-  @IsOptional()
+export class CreateOrderDto {
   @IsUUID()
-  customerId?: string;
+  userId: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CreateOrderItemInputDto)
+  items: CreateOrderItemInputDto[];
 }

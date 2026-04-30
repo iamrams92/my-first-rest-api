@@ -8,7 +8,7 @@ export type CartStatus = 'ACTIVE' | 'CHECKED_OUT';
 
 export interface Cart {
   id: string;
-  customerId: string;
+  userId: string;
   status: CartStatus;
   items: CartItem[];
   createdAt: string;

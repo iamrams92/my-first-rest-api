@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsNumber,
   IsString,
+  IsUUID,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -14,15 +15,18 @@ export class CreateProductDto {
   @MaxLength(120)
   name: string;
 
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(80)
-  category: string;
+  @IsUUID()
+  categoryId: string;
 
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   price: number;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @Min(0)
+  stock: number;
 
   @Transform(({ value }) => {
     if (typeof value === 'string') {
