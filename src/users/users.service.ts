@@ -3,94 +3,89 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { generateUuid } from '../utils/uuid.util';
-import {
-  User,
-  userCodeRunningNumber,
-  usersDatabase,
-} from './database/database';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { UserEntity } from '../entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { FindUsersQueryDto } from './dto/find-users-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
-  private codeRunningNumber = userCodeRunningNumber;
+  constructor(
+    @InjectRepository(UserEntity)
+    private readonly usersRepository: Repository<UserEntity>,
+  ) {}
 
-  create(createUserDto: CreateUserDto): User {
-    this.assertUniqueEmail(createUserDto.email);
-    const codeSequence = this.codeRunningNumber++;
-
-    const user: User = {
-      id: generateUuid(),
+  async create(createUserDto: CreateUserDto): Promise<UserEntity> {
+    await this.assertUniqueEmail(createUserDto.email);
+    const codeSequence = (await this.usersRepository.count()) + 1;
+    const user = this.usersRepository.create({
       code: `USR-${codeSequence.toString().padStart(4, '0')}`,
       fullName: createUserDto.fullName,
       email: createUserDto.email.toLowerCase(),
       isActive: createUserDto.isActive ?? true,
-    };
-
-    usersDatabase.push(user);
-    return user;
+    });
+    return this.usersRepository.save(user);
   }
 
-  findAll(query: FindUsersQueryDto) {
+  async findAll(query: FindUsersQueryDto) {
     const { page, size } = query;
-    const totalItems = usersDatabase.length;
+    const [items, totalItems] = await this.usersRepository.findAndCount({
+      skip: (page - 1) * size,
+      take: size,
+      order: { fullName: 'ASC' },
+    });
     const totalPage = totalItems === 0 ? 0 : Math.ceil(totalItems / size);
-    const startIndex = (page - 1) * size;
-    const items = usersDatabase.slice(startIndex, startIndex + size);
     return { page, size, totalItems, totalPage, items };
   }
 
-  findOne(id: string): User {
-    const user = usersDatabase.find((item) => item.id === id);
+  async findOne(id: string): Promise<UserEntity> {
+    const user = await this.usersRepository.findOne({ where: { id } });
     if (!user) {
       throw new NotFoundException(`User with id ${id} not found`);
     }
     return user;
   }
 
-  findActiveOne(id: string): User {
-    const user = this.findOne(id);
+  async findActiveOne(id: string): Promise<UserEntity> {
+    const user = await this.findOne(id);
     if (!user.isActive) {
       throw new BadRequestException(`User ${id} is inactive`);
     }
     return user;
   }
 
-  update(id: string, updateUserDto: UpdateUserDto): User {
-    const user = this.findOne(id);
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<UserEntity> {
+    const user = await this.findOne(id);
     if (updateUserDto.fullName !== undefined) {
       user.fullName = updateUserDto.fullName;
     }
     if (updateUserDto.email !== undefined) {
       const nextEmail = updateUserDto.email.toLowerCase();
-      this.assertUniqueEmail(nextEmail, id);
+      await this.assertUniqueEmail(nextEmail, id);
       user.email = nextEmail;
     }
     if (updateUserDto.isActive !== undefined) {
       user.isActive = updateUserDto.isActive;
     }
+    return this.usersRepository.save(user);
+  }
+
+  async remove(id: string): Promise<UserEntity> {
+    const user = await this.findOne(id);
+    await this.usersRepository.remove(user);
     return user;
   }
 
-  remove(id: string): User {
-    const index = usersDatabase.findIndex((item) => item.id === id);
-    if (index === -1) {
-      throw new NotFoundException(`User with id ${id} not found`);
-    }
-    const [deleted] = usersDatabase.splice(index, 1);
-    return deleted;
-  }
-
-  private assertUniqueEmail(email: string, currentUserId?: string) {
+  private async assertUniqueEmail(email: string, currentUserId?: string) {
     const normalizedEmail = email.toLowerCase();
-    const existing = usersDatabase.find(
-      (user) =>
-        user.email.toLowerCase() === normalizedEmail &&
-        user.id !== currentUserId,
-    );
-    if (existing) {
+    const existing = await this.usersRepository
+      .createQueryBuilder('user')
+      .where('LOWER(user.email) = :email', { email: normalizedEmail })
+      .getOne();
+
+    if (existing && existing.id !== currentUserId) {
       throw new BadRequestException(`User email ${email} already exists`);
     }
   }

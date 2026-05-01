@@ -1,17 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { ProductsService } from '../products/products.service';
-import { orderItemsDatabase } from './database';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { OrderItemEntity } from '../entities/order-item.entity';
 
 @Injectable()
 export class OrderItemsService {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(
+    @InjectRepository(OrderItemEntity)
+    private readonly orderItemsRepository: Repository<OrderItemEntity>,
+  ) {}
 
   findByOrderId(orderId: string) {
-    return orderItemsDatabase
-      .filter((item) => item.orderId === orderId)
-      .map((item) => ({
-        ...item,
-        product: this.productsService.findOne(item.productId),
-      }));
+    return this.orderItemsRepository.find({
+      where: { order: { id: orderId } },
+      order: { id: 'ASC' },
+    });
   }
 }

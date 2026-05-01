@@ -3,114 +3,122 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { CartEntity } from '../entities/cart.entity';
+import { CartItemEntity } from '../entities/cart-item.entity';
 import { ProductsService } from '../products/products.service';
 import { OrdersService } from '../orders/orders.service';
 import { UsersService } from '../users/users.service';
-import { generateUuid } from '../utils/uuid.util';
-import { Cart, CartItem, cartsDatabase } from './database/database';
 import { CheckoutCartDto } from './dto/checkout-cart.dto';
 import { CreateCartDto } from './dto/create-cart.dto';
 
 @Injectable()
 export class CartsService {
   constructor(
+    @InjectRepository(CartEntity)
+    private readonly cartsRepository: Repository<CartEntity>,
+    @InjectRepository(CartItemEntity)
+    private readonly cartItemsRepository: Repository<CartItemEntity>,
     private readonly usersService: UsersService,
     private readonly productsService: ProductsService,
     private readonly ordersService: OrdersService,
   ) {}
 
-  create(createCartDto: CreateCartDto) {
-    const user = this.usersService.findActiveOne(createCartDto.userId);
-    const cart: Cart = {
-      id: generateUuid(),
-      userId: user.id,
+  async create(createCartDto: CreateCartDto) {
+    const user = await this.usersService.findActiveOne(createCartDto.userId);
+    const cart = this.cartsRepository.create({
+      user,
       status: 'ACTIVE',
       items: [],
-      createdAt: new Date().toISOString(),
-    };
+    });
+    const savedCart = await this.cartsRepository.save(cart);
+    return this.buildCartSummary(savedCart);
+  }
 
-    cartsDatabase.push(cart);
+  async findOne(cartId: string) {
+    const cart = await this.getActiveOrCheckedOutCart(cartId);
     return this.buildCartSummary(cart);
   }
 
-  findOne(cartId: string) {
-    const cart = this.getActiveOrCheckedOutCart(cartId);
-    return this.buildCartSummary(cart);
-  }
-
-  addItem(cartId: string, productId: string, quantity: number) {
-    const cart = this.getActiveCart(cartId);
-    const product = this.productsService.findOne(productId);
+  async addItem(cartId: string, productId: string, quantity: number) {
+    const cart = await this.getActiveCart(cartId);
+    const product = await this.productsService.findOne(productId);
 
     if (!product.isActive) {
       throw new BadRequestException('Cannot add inactive product to cart');
     }
 
-    const existingItem = cart.items.find((item) => item.productId === productId);
+    const existingItem = (cart.items || []).find(
+      (item) => item.product.id === productId,
+    );
     const requestedQuantity = (existingItem?.quantity ?? 0) + quantity;
-    this.assertSufficientStock(productId, requestedQuantity);
+    await this.assertSufficientStock(productId, requestedQuantity);
 
     if (existingItem) {
       existingItem.quantity = requestedQuantity;
       existingItem.unitPrice = product.price;
+      await this.cartItemsRepository.save(existingItem);
     } else {
-      cart.items.push({
-        productId,
+      const cartItem = this.cartItemsRepository.create({
+        cart,
+        product,
         quantity,
         unitPrice: product.price,
       });
+      await this.cartItemsRepository.save(cartItem);
     }
 
-    return this.buildCartSummary(cart);
+    return this.findOne(cartId);
   }
 
-  updateItemQuantity(cartId: string, productId: string, quantity: number) {
-    const cart = this.getActiveCart(cartId);
-    const item = cart.items.find((cartItem) => cartItem.productId === productId);
+  async updateItemQuantity(cartId: string, productId: string, quantity: number) {
+    const cart = await this.getActiveCart(cartId);
+    const item = cart.items.find((cartItem) => cartItem.product.id === productId);
 
     if (!item) {
       throw new NotFoundException(`Product ${productId} is not in cart ${cartId}`);
     }
 
-    this.assertSufficientStock(productId, quantity);
+    await this.assertSufficientStock(productId, quantity);
     item.quantity = quantity;
-    item.unitPrice = this.productsService.findOne(productId).price;
+    item.unitPrice = (await this.productsService.findOne(productId)).price;
+    await this.cartItemsRepository.save(item);
 
-    return this.buildCartSummary(cart);
+    return this.findOne(cartId);
   }
 
-  removeItem(cartId: string, productId: string) {
-    const cart = this.getActiveCart(cartId);
-    const itemIndex = cart.items.findIndex((item) => item.productId === productId);
-
-    if (itemIndex === -1) {
+  async removeItem(cartId: string, productId: string) {
+    const cart = await this.getActiveCart(cartId);
+    const item = cart.items.find((cartItem) => cartItem.product.id === productId);
+    if (!item) {
       throw new NotFoundException(`Product ${productId} is not in cart ${cartId}`);
     }
-
-    cart.items.splice(itemIndex, 1);
-    return this.buildCartSummary(cart);
+    await this.cartItemsRepository.remove(item);
+    return this.findOne(cartId);
   }
 
-  checkout(cartId: string, checkoutCartDto: CheckoutCartDto) {
-    const cart = this.getActiveCart(cartId);
-    if (cart.items.length === 0) {
+  async checkout(cartId: string, checkoutCartDto: CheckoutCartDto) {
+    const cart = await this.getActiveCart(cartId);
+    if (!cart.items || cart.items.length === 0) {
       throw new BadRequestException('Cannot checkout an empty cart');
     }
 
     for (const item of cart.items) {
-      this.assertSufficientStock(item.productId, item.quantity);
+      await this.assertSufficientStock(item.product.id, item.quantity);
     }
 
-    const order = this.ordersService.create({
-      userId: cart.userId,
+    const order = await this.ordersService.create({
+      userId: cart.user.id,
       items: cart.items.map((item) => ({
-        productId: item.productId,
+        productId: item.product.id,
         quantity: item.quantity,
       })),
     });
 
     cart.status = 'CHECKED_OUT';
-    cart.checkedOutAt = new Date().toISOString();
+    cart.checkedOutAt = new Date();
+    await this.cartsRepository.save(cart);
 
     const totalItems = cart.items.reduce((sum, item) => sum + item.quantity, 0);
     const grandTotal = cart.items.reduce(
@@ -121,7 +129,7 @@ export class CartsService {
     return {
       message: 'Checkout completed successfully',
       note: checkoutCartDto.note ?? null,
-      cart: this.buildCartSummary(cart),
+      cart: await this.buildCartSummary(cart),
       checkout: {
         totalItems,
         grandTotal,
@@ -131,24 +139,30 @@ export class CartsService {
     };
   }
 
-  private getActiveOrCheckedOutCart(cartId: string): Cart {
-    const cart = cartsDatabase.find((item) => item.id === cartId);
+  private async getActiveOrCheckedOutCart(cartId: string): Promise<CartEntity> {
+    const cart = await this.cartsRepository.findOne({
+      where: { id: cartId },
+      relations: { items: { product: true }, user: true },
+    });
     if (!cart) {
       throw new NotFoundException(`Cart with id ${cartId} not found`);
     }
     return cart;
   }
 
-  private getActiveCart(cartId: string): Cart {
-    const cart = this.getActiveOrCheckedOutCart(cartId);
+  private async getActiveCart(cartId: string): Promise<CartEntity> {
+    const cart = await this.getActiveOrCheckedOutCart(cartId);
     if (cart.status !== 'ACTIVE') {
       throw new BadRequestException(`Cart ${cartId} has already been checked out`);
     }
     return cart;
   }
 
-  private assertSufficientStock(productId: string, requestedQuantity: number) {
-    const availableStock = this.productsService.getAvailableQuantity(productId);
+  private async assertSufficientStock(
+    productId: string,
+    requestedQuantity: number,
+  ) {
+    const availableStock = await this.productsService.getAvailableQuantity(productId);
     if (requestedQuantity > availableStock) {
       throw new BadRequestException(
         `Insufficient stock for product ${productId}. Available: ${availableStock}, requested: ${requestedQuantity}`,
@@ -156,12 +170,12 @@ export class CartsService {
     }
   }
 
-  private buildCartSummary(cart: Cart) {
-    const user = this.usersService.findOne(cart.userId);
-    const items = cart.items.map((item: CartItem) => {
-      const product = this.productsService.findOne(item.productId);
+  private async buildCartSummary(cart: CartEntity) {
+    const user = await this.usersService.findOne(cart.user.id);
+    const items = cart.items.map((item: CartItemEntity) => {
+      const product = item.product;
       return {
-        productId: item.productId,
+        productId: product.id,
         productCode: product.code,
         productName: product.name,
         quantity: item.quantity,

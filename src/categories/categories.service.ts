@@ -2,51 +2,52 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { generateUuid } from '../utils/uuid.util';
-import {
-  categoriesDatabase,
-  Category,
-  categoryCodeRunningNumber,
-} from './database/database';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { CategoryEntity } from '../entities/category.entity';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Injectable()
 export class CategoriesService {
-  private codeRunningNumber = categoryCodeRunningNumber;
+  constructor(
+    @InjectRepository(CategoryEntity)
+    private readonly categoriesRepository: Repository<CategoryEntity>,
+  ) {}
 
-  create(createCategoryDto: CreateCategoryDto): Category {
-    const codeSequence = this.codeRunningNumber++;
-    const category: Category = {
-      id: generateUuid(),
+  async create(createCategoryDto: CreateCategoryDto): Promise<CategoryEntity> {
+    const codeSequence = (await this.categoriesRepository.count()) + 1;
+    const category = this.categoriesRepository.create({
       code: `CAT-${codeSequence.toString().padStart(4, '0')}`,
       name: createCategoryDto.name,
       isActive: createCategoryDto.isActive ?? true,
-    };
-    categoriesDatabase.push(category);
-    return category;
+    });
+    return this.categoriesRepository.save(category);
   }
 
-  findAll() {
-    return categoriesDatabase;
+  findAll(): Promise<CategoryEntity[]> {
+    return this.categoriesRepository.find({ order: { name: 'ASC' } });
   }
 
-  findOne(id: string): Category {
-    const category = categoriesDatabase.find((item) => item.id === id);
+  async findOne(id: string): Promise<CategoryEntity> {
+    const category = await this.categoriesRepository.findOne({ where: { id } });
     if (!category) {
       throw new NotFoundException(`Category with id ${id} not found`);
     }
     return category;
   }
 
-  update(id: string, updateCategoryDto: UpdateCategoryDto): Category {
-    const category = this.findOne(id);
+  async update(
+    id: string,
+    updateCategoryDto: UpdateCategoryDto,
+  ): Promise<CategoryEntity> {
+    const category = await this.findOne(id);
     if (updateCategoryDto.name !== undefined) {
       category.name = updateCategoryDto.name;
     }
     if (updateCategoryDto.isActive !== undefined) {
       category.isActive = updateCategoryDto.isActive;
     }
-    return category;
+    return this.categoriesRepository.save(category);
   }
 }

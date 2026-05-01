@@ -1,14 +1,20 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { PaymentEntity } from '../entities/payment.entity';
 import { OrdersService } from '../orders/orders.service';
-import { makePayment, paymentsDatabase } from './database/database';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 
 @Injectable()
 export class PaymentsService {
-  constructor(private readonly ordersService: OrdersService) {}
+  constructor(
+    @InjectRepository(PaymentEntity)
+    private readonly paymentsRepository: Repository<PaymentEntity>,
+    private readonly ordersService: OrdersService,
+  ) {}
 
-  create(createPaymentDto: CreatePaymentDto) {
-    const order = this.ordersService.findOneRaw(createPaymentDto.orderId);
+  async create(createPaymentDto: CreatePaymentDto) {
+    const order = await this.ordersService.findOneRaw(createPaymentDto.orderId);
     if (order.paymentStatus === 'PAID') {
       throw new BadRequestException(`Order ${order.id} is already paid`);
     }
@@ -18,22 +24,29 @@ export class PaymentsService {
       );
     }
 
-    const payment = makePayment({
-      orderId: createPaymentDto.orderId,
+    const sequence = (await this.paymentsRepository.count()) + 1;
+    const payment = this.paymentsRepository.create({
+      code: `PAY-${sequence.toString().padStart(4, '0')}`,
+      order,
       amount: createPaymentDto.amount,
       method: createPaymentDto.method,
       status: 'PAID',
+      paidAt: new Date(),
     });
+    const savedPayment = await this.paymentsRepository.save(payment);
 
-    this.ordersService.markAsPaid(order.id);
-    return payment;
+    await this.ordersService.markAsPaid(order.id);
+    return savedPayment;
   }
 
   findAll() {
-    return paymentsDatabase;
+    return this.paymentsRepository.find({ order: { createdAt: 'DESC' } });
   }
 
   findByOrderId(orderId: string) {
-    return paymentsDatabase.filter((payment) => payment.orderId === orderId);
+    return this.paymentsRepository.find({
+      where: { order: { id: orderId } },
+      order: { createdAt: 'DESC' },
+    });
   }
 }
