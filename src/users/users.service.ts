@@ -2,7 +2,9 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserEntity } from '../entities/user.entity';
@@ -20,13 +22,57 @@ export class UsersService {
   async create(createUserDto: CreateUserDto): Promise<UserEntity> {
     await this.assertUniqueEmail(createUserDto.email);
     const codeSequence = (await this.usersRepository.count()) + 1;
+    const passwordHash =
+      createUserDto.password !== undefined
+        ? await bcrypt.hash(createUserDto.password, 10)
+        : null;
     const user = this.usersRepository.create({
       code: `USR-${codeSequence.toString().padStart(4, '0')}`,
       fullName: createUserDto.fullName,
       email: createUserDto.email.toLowerCase(),
       isActive: createUserDto.isActive ?? true,
+      passwordHash,
     });
     return this.usersRepository.save(user);
+  }
+
+  /** Used by JwtStrategy — active user including current token revision */
+  async findActiveForAuth(id: string): Promise<UserEntity> {
+    const user = await this.usersRepository.findOne({ where: { id } });
+    if (!user?.isActive) {
+      throw new UnauthorizedException('User inactive or unknown');
+    }
+    return user;
+  }
+
+  async validateCredentials(email: string, plainPassword: string) {
+    const normalized = email.trim().toLowerCase();
+    const user = await this.usersRepository.findOne({
+      where: { email: normalized },
+      select: [
+        'id',
+        'code',
+        'fullName',
+        'email',
+        'isActive',
+        'passwordHash',
+        'tokenVersion',
+      ],
+    });
+    if (!user?.isActive || user.passwordHash == null) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    const valid = await bcrypt.compare(plainPassword, user.passwordHash);
+    if (!valid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    return user;
+  }
+
+  /** Server-side revocation: JWT `tv` no longer matches */
+  async invalidateTokens(userId: string): Promise<void> {
+    await this.findOne(userId);
+    await this.usersRepository.increment({ id: userId }, 'tokenVersion', 1);
   }
 
   async findAll(query: FindUsersQueryDto) {

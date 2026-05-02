@@ -16,6 +16,14 @@ export class UserEntity {
   @Column({ unique: true, length: 120 })
   email: string;
 
+  /** bcrypt hash — excluded from default SELECT; load explicitly where needed */
+  @Column({ type: 'varchar', nullable: true, select: false })
+  passwordHash: string | null;
+
+  /** incremented on logout to invalidate outstanding JWT access tokens */
+  @Column({ type: 'int', default: 0 })
+  tokenVersion: number;
+
   @Column({ default: true })
   isActive: boolean;
 

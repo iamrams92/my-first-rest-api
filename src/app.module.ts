@@ -11,6 +11,7 @@ import { OrderItemsModule } from './order-items/order-items.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ProductsModule } from './products/products.module';
+import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 // Entities
 import { UserEntity } from './entities/user.entity';
@@ -50,6 +51,7 @@ import { PaymentEntity } from './entities/payment.entity';
       }),
     }),
     UsersModule,
+    AuthModule,
     CategoriesModule,
     ProductsModule,
     CartsModule,

@@ -46,6 +46,9 @@ lerna-debug.log*
 .temp
 .tmp
 
+# Local npm cache override (e.g. tooling / CI experiments)
+.npm-cache
+
 # Runtime data
 pids
 *.pid
