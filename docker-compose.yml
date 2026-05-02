@@ -1,16 +1,19 @@
-# Two Postgres setups:
-# - Default: app uses service `db` (empty volume until you migrate/seed).
-# - Same data as on your Mac: set DOCKER_APP_DB_HOST=host.docker.internal in .env, then either
-#   stop publishing db on 5432 (change DB_PORT_ON_HOST) or run: docker compose up --no-deps app
+# Default: only the Nest `app` image is built/running; Postgres is your host machine at localhost:5432
+# (from inside the container that is host.docker.internal:5432 — see Docker Desktop / extra_hosts below).
+#
+# Optional bundled Postgres:
+#   docker compose --profile with-db up --build
+
 services:
   db:
+    profiles:
+      - with-db
     image: postgres:16-alpine
     container_name: fundamental-db
     environment:
       POSTGRES_USER: ${DB_USERNAME:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-admin123}
       POSTGRES_DB: ${DB_NAME:-postgres}
-    # Host port (DBeaver, etc.) → container 5432 (Postgres always listens on 5432 inside the image).
     ports:
       - "${DB_PORT_ON_HOST:-5432}:5432"
     volumes:
@@ -32,7 +35,6 @@ services:
     container_name: fundamental-app
     ports:
       - "4040:4040"
-    # Lets the app reach Postgres on the host (same DB as DBeaver at 127.0.0.1) when DOCKER_APP_DB_HOST is set.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file:
@@ -40,13 +42,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4040
-      # Default `db` = Postgres in this compose file (own volume, often empty vs your Mac install).
-      # Set DOCKER_APP_DB_HOST=host.docker.internal in .env to use the Postgres on your machine instead.
-      DB_HOST: ${DOCKER_APP_DB_HOST:-db}
+      DB_HOST: ${DOCKER_APP_DB_HOST:-host.docker.internal}
       DB_PORT: ${DOCKER_APP_DB_PORT:-5432}
-    depends_on:
-      db:
-        condition: service_healthy
 
 volumes:
   pgdata:
