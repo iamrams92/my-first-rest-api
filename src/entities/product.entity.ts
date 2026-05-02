@@ -1,9 +1,11 @@
 import {
   Column,
+  CreateDateColumn,
   Entity,
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import type { CartItemEntity } from './cart-item.entity.js';
 import type { CategoryEntity } from './category.entity.js';
@@ -28,6 +30,12 @@ export class ProductEntity {
 
   @Column({ default: true })
   isActive: boolean;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 
   @ManyToOne('CategoryEntity', 'products', {
     eager: true,

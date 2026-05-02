@@ -1,8 +1,10 @@
+// Dependencies
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+// Modules
 import { CartsModule } from './carts/carts.module';
 import { CategoriesModule } from './categories/categories.module';
 import { OrderItemsModule } from './order-items/order-items.module';
@@ -10,6 +12,7 @@ import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ProductsModule } from './products/products.module';
 import { UsersModule } from './users/users.module';
+// Entities
 import { UserEntity } from './entities/user.entity';
 import { CategoryEntity } from './entities/category.entity';
 import { ProductEntity } from './entities/product.entity';
@@ -27,7 +30,7 @@ import { PaymentEntity } from './entities/payment.entity';
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         host: configService.get<string>('DB_HOST'),
-        port: Number(configService.get<string>('DB_PORT', '5432')),
+        port: Number.parseInt(configService.getOrThrow<string>('DB_PORT'), 10),
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
@@ -41,7 +44,7 @@ import { PaymentEntity } from './entities/payment.entity';
           OrderItemEntity,
           PaymentEntity,
         ],
-        dropSchema: true,
+        dropSchema: false,
         synchronize: true,
         autoLoadEntities: true,
       }),

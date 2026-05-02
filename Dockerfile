@@ -1,3 +1,7 @@
+# Runtime DB_* (DB_HOST, DB_PORT, DB_USERNAME, DB_PASSWORD, DB_NAME) must be supplied
+# by docker-compose `environment` / `env_file` — see docker-compose.yml. Do not bake
+# connection strings into the image.
+
 FROM node:20-alpine AS builder
 
 WORKDIR /app
