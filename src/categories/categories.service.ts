@@ -6,6 +6,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CategoryEntity } from '../entities/category.entity';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { FindCategoriesQueryDto } from './dto/find-categories-query.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Injectable()
@@ -25,8 +26,15 @@ export class CategoriesService {
     return this.categoriesRepository.save(category);
   }
 
-  findAll(): Promise<CategoryEntity[]> {
-    return this.categoriesRepository.find({ order: { name: 'ASC' } });
+  async findAll(query: FindCategoriesQueryDto) {
+    const { page, size } = query;
+    const [items, totalItems] = await this.categoriesRepository.findAndCount({
+      skip: (page - 1) * size,
+      take: size,
+      order: { name: 'ASC' },
+    });
+    const totalPage = totalItems === 0 ? 0 : Math.ceil(totalItems / size);
+    return { page, size, totalItems, totalPage, items };
   }
 
   async findOne(id: string): Promise<CategoryEntity> {

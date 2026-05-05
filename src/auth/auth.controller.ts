@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Post,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -31,12 +32,14 @@ export class AuthController {
 
   /** Verify Bearer token and return the current user profile */
   @Get('me')
+  @ApiBearerAuth()
   me(@CurrentUser() user: JwtAuthUser) {
     return this.authService.me(user.userId);
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
   logout(@CurrentUser() user: JwtAuthUser) {
     return this.authService.logout(user.userId);
   }

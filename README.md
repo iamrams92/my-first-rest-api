@@ -27,22 +27,32 @@
 
 ## Simple E-commerce API
 
+### API Documentation (Swagger)
+
+- Swagger UI: `http://localhost:4040/api/docs`
+- OpenAPI JSON: `http://localhost:4040/api/docs-json`
+
 ### Main domain APIs
 
 - `users`
   - `GET /users`, `GET /users/:id`, `POST /users`, `PATCH /users/:id`, `DELETE /users/:id`
+  - Pagination query: `?page=1&size=10`
 - `categories`
   - `GET /categories`, `GET /categories/:id`, `POST /categories`, `PATCH /categories/:id`
+  - Pagination query: `?page=1&size=10`
 - `products`
   - `GET /products`, `GET /products/:id`, `POST /products`, `PATCH /products/:id`, `DELETE /products/:id`
+  - Pagination query: `?page=1&size=10`
 - `carts`
   - `POST /carts`, `GET /carts/:cartId`, `POST /carts/:cartId/items`, `PATCH /carts/:cartId/items/:productId`, `DELETE /carts/:cartId/items/:productId`, `POST /carts/:cartId/checkout`
 - `orders`
   - `GET /orders`, `GET /orders/:id`, `POST /orders`
+  - Pagination query: `?page=1&size=10`
 - `order_items`
   - `GET /order-items/order/:orderId`
 - `payments`
   - `GET /payments`, `GET /payments/order/:orderId`, `POST /payments`
+  - Pagination query: `?page=1&size=10` for `GET /payments`
 
 ### Example end-to-end flow
 

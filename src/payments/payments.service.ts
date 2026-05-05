@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { PaymentEntity } from '../entities/payment.entity';
 import { OrdersService } from '../orders/orders.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { FindPaymentsQueryDto } from './dto/find-payments-query.dto';
 
 @Injectable()
 export class PaymentsService {
@@ -39,8 +40,15 @@ export class PaymentsService {
     return savedPayment;
   }
 
-  findAll() {
-    return this.paymentsRepository.find({ order: { createdAt: 'DESC' } });
+  async findAll(query: FindPaymentsQueryDto) {
+    const { page, size } = query;
+    const [items, totalItems] = await this.paymentsRepository.findAndCount({
+      skip: (page - 1) * size,
+      take: size,
+      order: { createdAt: 'DESC' },
+    });
+    const totalPage = totalItems === 0 ? 0 : Math.ceil(totalItems / size);
+    return { page, size, totalItems, totalPage, items };
   }
 
   findByOrderId(orderId: string) {
